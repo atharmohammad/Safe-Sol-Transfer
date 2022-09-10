@@ -9,17 +9,17 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 pub mod escrow {
     use super::*;
 
-    pub fn initialize(ctx: Context<InitializePayment>,application_idx:u64,state_bump:u8,amount:u64) -> Result<()> {//wallet_bump:u8,
+    pub fn initialize(ctx: Context<InitializePayment>,application_idx:u64,amount:u64) -> Result<()> {
         let curr_state = &mut ctx.accounts.application_state;
         curr_state.idx = application_idx;
-        curr_state.state_bump = state_bump;
+        curr_state.state_bump = *ctx.bumps.get("state").expect("We should have gotten the state bump");
         curr_state.user_sending = ctx.accounts.user_sending.key().clone();
         curr_state.user_receiver = ctx.accounts.user_receiver.key().clone();
         curr_state.mint_of_token_sent = ctx.accounts.mint_of_token_sent.key().clone();
         curr_state.escrow_wallet = ctx.accounts.escrow_wallet_state.key().clone();
         curr_state.amount_token = amount;
 
-        let bump_vector = state_bump.to_le_bytes();
+        let bump_vector = curr_state.state_bump.to_le_bytes();
         let mint_of_token_sent_pk = ctx.accounts.mint_of_token_sent.key().clone();
         let application_idx = application_idx.to_le_bytes();
         let inner = vec![
@@ -44,18 +44,18 @@ pub mod escrow {
         Ok(())
     }
 
-    pub fn compelete(ctx:Context<CompeletePayment>,application_idx:u64,state_bump:u8,_wallet_bump:u8) -> Result<()> {
+    pub fn compelete(ctx:Context<CompeletePayment>,application_idx:u64,_wallet_bump:u8) -> Result<()> {
         if Stage::from(ctx.accounts.application_state.stage) != Stage::FundsDeposited{
             msg!("Stage is invalid, state stage is not Funds Deposited");
             return Err(PayError::InvalidStage.into());
         }
         let curr = ctx.accounts;
         transfer_escrow_out(curr.user_sending.to_account_info(), curr.user_receiver.to_account_info(),curr.mint_of_token_sent.to_account_info(), &mut curr.escrow_wallet_state,application_idx,curr.application_state.to_account_info(), 
-            state_bump, curr.token_program.to_account_info(), curr.wallet_deposit_to.to_account_info(), curr.application_state.amount_token)?;        
+            curr.application_state.state_bump, curr.token_program.to_account_info(), curr.wallet_deposit_to.to_account_info(), curr.application_state.amount_token)?;        
         Ok(())
     }
 
-    pub fn pullback(ctx:Context<PullBack>,application_idx:u64,state_bump:u8,_wallet_bump:u8) -> Result<()> {
+    pub fn pullback(ctx:Context<PullBack>,application_idx:u64) -> Result<()> {
         let current_stage = Stage::from(ctx.accounts.application_state.stage);
         if current_stage != Stage::FundsDeposited{
             msg!("Funds not available");
@@ -63,7 +63,7 @@ pub mod escrow {
         }
         let curr = ctx.accounts;
         transfer_escrow_out(curr.user_sending.to_account_info(), curr.user_receiver.to_account_info(),curr.mint_of_token_sent.to_account_info(), &mut curr.escrow_wallet_state,application_idx,curr.application_state.to_account_info(), 
-            state_bump, curr.token_program.to_account_info(), curr.refund_wallet.to_account_info(), curr.application_state.amount_token)?;        
+            curr.application_state.state_bump, curr.token_program.to_account_info(), curr.refund_wallet.to_account_info(), curr.application_state.amount_token)?;        
         Ok(())
     }
 }

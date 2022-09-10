@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::*;
 use anchor_spl::associated_token::*;
+
 #[derive(AnchorSerialize,AnchorDeserialize,Clone,PartialEq,Copy)]
 pub enum Stage{
     FundsDeposited = 1,
@@ -25,7 +26,7 @@ pub struct State{
 }
 
 #[derive(Accounts)]
-#[instruction(application_idx:u64)]//,state_bump:u8,wallet_bump:u8)
+#[instruction(application_idx:u64)]
 pub struct InitializePayment<'info>{
     #[account(
         init, 
@@ -60,12 +61,12 @@ pub struct InitializePayment<'info>{
 }
 
 #[derive(Accounts)]
-#[instruction(application_idx:u64,state_bump:u8,wallet_bump:u8)]
+#[instruction(application_idx:u64,wallet_bump:u8)]
 pub struct CompeletePayment<'info>{
     #[account(
         mut,
         seeds=[b"state".as_ref(),user_sending.key().as_ref(),user_receiver.key().as_ref(),mint_of_token_sent.key().as_ref(),application_idx.to_le_bytes().as_ref()],
-        bump=state_bump,
+        bump=application_state.state_bump,
         has_one=user_sending,
         has_one=user_receiver,
         has_one=mint_of_token_sent
@@ -96,12 +97,12 @@ pub struct CompeletePayment<'info>{
 }
 
 #[derive(Accounts)]
-#[instruction(application_idx:u64,state_bump:u8,wallet_bump:u8)]
+#[instruction(application_idx:u64,wallet_bump:u8)]
 pub struct PullBack<'info>{
     #[account(
         mut,
         seeds=[b"state".as_ref(),user_sending.key().as_ref(),user_receiver.key().as_ref(),mint_of_token_sent.key().as_ref(),application_idx.to_le_bytes().as_ref()],
-        bump=state_bump,
+        bump=application_state.state_bump,
         has_one=user_sending,
         has_one=user_receiver,
         has_one=mint_of_token_sent
