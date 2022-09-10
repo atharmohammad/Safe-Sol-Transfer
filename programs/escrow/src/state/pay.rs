@@ -47,6 +47,7 @@ pub struct InitializePayment<'info>{
     pub escrow_wallet_state:Account<'info,TokenAccount>,
     #[account(mut)]
     pub user_sending:Signer<'info>,
+    /// CHECK
     pub user_receiver:AccountInfo<'info>,
     pub mint_of_token_sent:Account<'info,Mint>,
     #[account(
@@ -86,6 +87,7 @@ pub struct CompeletePayment<'info>{
     )]
     pub wallet_deposit_to: Account<'info,TokenAccount>,
     #[account(mut)]
+    /// CHECK
     pub user_sending:AccountInfo<'info>,
     #[account(mut)]
     pub user_receiver:Signer<'info>,
@@ -117,6 +119,7 @@ pub struct PullBack<'info>{
     //user and accounts in system
     #[account(mut)]
     pub user_sending:Signer<'info>,
+    /// CHECK
     pub user_receiver:AccountInfo<'info>,
     pub mint_of_token_sent:Account<'info,Mint>,
     //programs and rent
