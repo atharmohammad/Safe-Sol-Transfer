@@ -2,6 +2,7 @@ import * as anchor from "@project-serum/anchor";
 import * as spl from "@solana/spl-token";
 import { Program } from "@project-serum/anchor";
 import { Escrow } from "../target/types/escrow";
+import { token } from "@project-serum/anchor/dist/cjs/utils";
 
 interface PDAparams{
   idx:anchor.BN,
@@ -24,7 +25,8 @@ describe("escrow", () => {
   let bob: anchor.web3.Keypair;
   let aliceWallet: anchor.web3.PublicKey;
   let pda: PDAparams;
-
+  let bobWallet : anchor.web3.PublicKey;
+  let amount : anchor.BN;
   // define helper functions
   const getPdaParams = async(connection: anchor.web3.Connection, alice:anchor.web3.PublicKey, bob:anchor.web3.PublicKey , mint:anchor.web3.PublicKey) : Promise<PDAparams> =>{
     const uid = new anchor.BN(parseInt((Date.now()/1000).toString()));
@@ -74,9 +76,43 @@ describe("escrow", () => {
     return tokenMint.publicKey;
   }
 
-  // it("Is initialized!", async () => {
-  //   // Add your test here.
-  //   const tx = await program.methods.initialize().rpc();
-  //   console.log("Your transaction signature", tx);
-  // });
+  const createAssociatedTokenAccount = async(connection:anchor.web3.Connection,payer:anchor.web3.Keypair,mint?:anchor.web3.PublicKey) =>{
+    let tx = new anchor.web3.Transaction();
+    tx.add(
+      anchor.web3.SystemProgram.transfer({
+        fromPubkey:provider.wallet.publicKey,
+        toPubkey:alice.publicKey,
+        lamports:5*10000
+      })
+    )
+    provider.sendAndConfirm(tx);
+    let account = await spl.createAssociatedTokenAccount(connection,payer,mint,payer.publicKey);
+    if(mint){
+      spl.mintTo(connection,alice,mint,account,provider.wallet.publicKey,1);
+    }
+    return account;
+  }
+  beforeEach(async()=>{
+    alice = new anchor.web3.Keypair();
+    bob = new anchor.web3.Keypair();
+    mintAddress = await createMint(provider.connection);
+    aliceWallet = await createAssociatedTokenAccount(provider.connection,alice,mintAddress);
+    bobWallet = await createAssociatedTokenAccount(provider.connection,bob);
+    pda = await getPdaParams(provider.connection,alice.publicKey,bob.publicKey,mintAddress);
+  })
+  it("Initialize Payment", async () => {
+    // Add your test here.
+    const tx = await program.methods.initialize(pda.idx,amount).accounts({
+          applicationState:pda.stateKey,
+          escrowWalletState:pda.escrowWalletKey,
+          userSending:alice.publicKey,
+          userReceiver:bob.publicKey,
+          mintOfTokenSent:mintAddress,
+          walletToWithdrawFrom:aliceWallet,
+          tokenProgram:spl.TOKEN_PROGRAM_ID,
+          systemProgram:anchor.web3.SystemProgram.programId,
+          rent:anchor.web3.SYSVAR_RENT_PUBKEY
+        }).signers([alice])
+  });
+
 });
