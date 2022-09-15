@@ -4,6 +4,7 @@ import { Program } from "@project-serum/anchor";
 import { Escrow } from "../target/types/escrow";
 import { token } from "@project-serum/anchor/dist/cjs/utils";
 import { Account } from "@solana/spl-token";
+import {encode} from "@project-serum/anchor/dist/cjs/utils/bytes/utf8";
 
 interface PDAparams{
   idx:anchor.BN,
@@ -34,11 +35,11 @@ describe("escrow", () => {
     const uidBuffer = uid.toBuffer('le',8);
 
     const [statePubkey,stateBump] = await anchor.web3.PublicKey.findProgramAddress(
-      [Buffer.from("state"),alice.toBuffer(),bob.toBuffer(),mint.toBuffer(),uidBuffer],
+      [encode("state"),alice.toBuffer(),bob.toBuffer(),mint.toBuffer(),uidBuffer],
       program.programId);
 
     const [walletPubkey,walletBump] = await anchor.web3.PublicKey.findProgramAddress(
-        [Buffer.from("wallet"),alice.toBuffer(),bob.toBuffer(),mint.toBuffer(),uidBuffer],
+        [encode("wallet"),alice.toBuffer(),bob.toBuffer(),mint.toBuffer(),uidBuffer],
         program.programId);
 
     return {
@@ -92,7 +93,7 @@ describe("escrow", () => {
       const newTx = new anchor.web3.Transaction();
       account = await spl.getAssociatedTokenAddress(mint,payer.publicKey,undefined,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID);
       newTx.add(spl.createAssociatedTokenAccountInstruction(payer.publicKey,account,payer.publicKey,mint,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID))
-      newTx.add(spl.createMintToInstruction(mint,account,provider.wallet.publicKey,1,[],spl.TOKEN_PROGRAM_ID));
+      newTx.add(spl.createMintToInstruction(mint,account,provider.wallet.publicKey,2,[],spl.TOKEN_PROGRAM_ID));
       await provider.sendAndConfirm(newTx,[payer]);
     }
     return account;
@@ -106,12 +107,14 @@ describe("escrow", () => {
     pda = await getPdaParams(provider.connection,alice.publicKey,bob.publicKey,mintAddress);
   })
   const readaccount = async(key:anchor.web3.PublicKey) : Promise<Account> =>{
-    const acc = await spl.getAccount(provider.connection,key,'confirmed',program.programId);
+    const acc = await spl.getAccount(provider.connection,key,'confirmed',spl.TOKEN_PROGRAM_ID);
     return acc;
   }
   it("Initialize Payment", async () => {
     // Add your test here.
-      const tx = await program.methods.initialize(pda.idx,amount).accounts({
+      amount = new anchor.BN(20000000);
+      try{
+        const tx = await program.methods.initialize(pda.idx,amount).accounts({
           applicationState:pda.stateKey,
           escrowWalletState:pda.escrowWalletKey,
           userSending:alice.publicKey,
@@ -121,13 +124,16 @@ describe("escrow", () => {
           tokenProgram:spl.TOKEN_PROGRAM_ID,
           systemProgram:anchor.web3.SystemProgram.programId,
           rent:anchor.web3.SYSVAR_RENT_PUBKEY
-        }).signers([alice]);
+        }).signers([alice]).rpc();
+        console.log(tx);
+        const escrowState = await provider.connection.getAccountInfo(pda.escrowWalletKey)
+        const applicationStateAcc = await program.account.state.fetch(pda.stateKey)
+        console.log(applicationStateAcc);
+        const aliceState = await readaccount(aliceWallet);
+        console.log(aliceState);
+      }catch(e){
+        console.log(e);
+      }
       
-      const aliceState = await readaccount(pda.stateKey);
-      const escrowState = await readaccount(pda.escrowWalletKey);
-      console.log(aliceState);
-      console.log(escrowState);
-
   });
-
 });

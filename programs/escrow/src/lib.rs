@@ -37,7 +37,6 @@ pub mod escrow {
             to:ctx.accounts.escrow_wallet_state.to_account_info(),
             authority:ctx.accounts.user_sending.to_account_info()
         };
-
         let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), transfer_instruction, outer.as_slice());
         transfer(cpi_ctx, amount)?;
         curr_state.stage = Stage::FundsDeposited;
