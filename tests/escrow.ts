@@ -3,8 +3,9 @@ import * as spl from "@solana/spl-token";
 import { Program } from "@project-serum/anchor";
 import { Escrow } from "../target/types/escrow";
 import { token } from "@project-serum/anchor/dist/cjs/utils";
-import { Account } from "@solana/spl-token";
+import { Account, AccountLayout, RawAccount } from "@solana/spl-token";
 import {encode} from "@project-serum/anchor/dist/cjs/utils/bytes/utf8";
+import { expect } from "chai";
 
 interface PDAparams{
   idx:anchor.BN,
@@ -106,13 +107,15 @@ describe("escrow", () => {
     bobWallet = await createAssociatedTokenAccount(provider.connection,bob);
     pda = await getPdaParams(provider.connection,alice.publicKey,bob.publicKey,mintAddress);
   })
-  const readaccount = async(key:anchor.web3.PublicKey) : Promise<Account> =>{
-    const acc = await spl.getAccount(provider.connection,key,'confirmed',spl.TOKEN_PROGRAM_ID);
-    return acc;
+  const readaccount = async(key:anchor.web3.PublicKey) : Promise<RawAccount> =>{
+    const acc = await provider.connection.getAccountInfo(key);
+    return AccountLayout.decode(acc.data);
   }
   it("Initialize Payment", async () => {
     // Add your test here.
+      const prevAliceState = await readaccount(aliceWallet)
       amount = new anchor.BN(1);
+      const k = new anchor.web3.Keypair();
       try{
         const tx = await program.methods.initialize(pda.idx,amount).accounts({
           applicationState:pda.stateKey,
@@ -125,15 +128,15 @@ describe("escrow", () => {
           systemProgram:anchor.web3.SystemProgram.programId,
           rent:anchor.web3.SYSVAR_RENT_PUBKEY
         }).signers([alice]).rpc();
-        console.log(tx);
-        const escrowState = await provider.connection.getAccountInfo(pda.escrowWalletKey)
         const applicationStateAcc = await program.account.state.fetch(pda.stateKey)
-        console.log(applicationStateAcc);
         const aliceState = await readaccount(aliceWallet);
-        console.log(aliceState);
+        const escrow = await readaccount(pda.escrowWalletKey);
+        expect(aliceState.amount.toString()).to.eql("1");
+        expect(prevAliceState.amount.toString()).to.eql("2");
+        expect(escrow.amount.toString()).to.eql("1");
+        expect(applicationStateAcc.stage).to.eql({ fundsDeposited: {} });
       }catch(e){
         console.log(e);
       }
-      
   });
 });

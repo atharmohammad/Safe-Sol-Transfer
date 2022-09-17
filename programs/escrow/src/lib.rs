@@ -20,14 +20,14 @@ pub mod escrow {
 
         let mint_of_token_sent_pk = ctx.accounts.mint_of_token_sent.key().clone();
         let application_idx = application_idx.to_le_bytes();
-        let inner_bump_vec = vec![
+        let state_seeds = vec![
             b"state".as_ref(),
             ctx.accounts.user_sending.key.as_ref(),
             ctx.accounts.user_receiver.key.as_ref(),
             mint_of_token_sent_pk.as_ref(),
             application_idx.as_ref(),
         ];
-        let (_address,state_bump) = Pubkey::find_program_address(inner_bump_vec.as_slice(), ctx.program_id);
+        let (_address,state_bump) = Pubkey::find_program_address(state_seeds.as_slice(), ctx.program_id);
         curr_state.state_bump = state_bump;
         let bump_vector = curr_state.state_bump.to_le_bytes();
         let inner = vec![
