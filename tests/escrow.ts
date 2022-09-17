@@ -140,9 +140,7 @@ describe("escrow", () => {
       }
   });
   it("Compelete Payment",async() => {
-      console.log(bobWallet)
       const prevBobState = await readaccount(bobWallet);
-      amount = new anchor.BN(1);
       try{
         const tx1 = await program.methods.initialize(pda.idx,amount).accounts({
           applicationState:pda.stateKey,
@@ -173,7 +171,7 @@ describe("escrow", () => {
         }).signers([bob]).rpc();
         const bobState = await readaccount(bobWallet);
         try{
-          const escrow = await readaccount(pda.escrowWalletKey);
+          await readaccount(pda.escrowWalletKey);
           return assert("Account should be closed");
         }catch(e){
           expect(e,"Cannot read properties of null (reading 'data')")
@@ -183,5 +181,46 @@ describe("escrow", () => {
       }catch(e){
         console.log(e);
       }
+  })
+  it("Pulling back the transaction to alice wallet",async() =>{
+    const prevAliceState = await readaccount(aliceWallet)
+    try{
+      const tx1 = await program.methods.initialize(pda.idx,amount).accounts({
+        applicationState:pda.stateKey,
+        escrowWalletState:pda.escrowWalletKey,
+        userSending:alice.publicKey,
+        userReceiver:bob.publicKey,
+        mintOfTokenSent:mintAddress,
+        walletToWithdrawFrom:aliceWallet,
+        tokenProgram:spl.TOKEN_PROGRAM_ID,
+        systemProgram:anchor.web3.SystemProgram.programId,
+        rent:anchor.web3.SYSVAR_RENT_PUBKEY
+      }).signers([alice]).rpc();
+    }catch(e){
+      console.log(e);
+    }
+    try{
+      const tx2 = await program.methods.pullback(pda.idx,pda.walletBump).accounts({
+        applicationState:pda.stateKey,
+        escrowWalletState:pda.escrowWalletKey,
+        userSending:alice.publicKey,
+        userReceiver:bob.publicKey,
+        mintOfTokenSent:mintAddress,
+        refundWallet:aliceWallet,
+        tokenProgram:spl.TOKEN_PROGRAM_ID,
+        systemProgram:anchor.web3.SystemProgram.programId,
+        rent:anchor.web3.SYSVAR_RENT_PUBKEY
+      }).signers([alice]).rpc();
+    }catch(e){
+      console.log(e);
+    }
+    try{
+      await readaccount(pda.escrowWalletKey);
+      return assert("Account should be closed");
+    }catch(e){
+      expect(e,"Cannot read properties of null (reading 'data')")
+    }
+    const aliceState = await readaccount(aliceWallet);
+    expect(aliceState.amount).to.eql(prevAliceState.amount);
   })
 });

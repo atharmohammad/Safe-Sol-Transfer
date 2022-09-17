@@ -62,7 +62,7 @@ pub mod escrow {
         Ok(())
     }
 
-    pub fn pullback(ctx:Context<PullBack>,application_idx:u64) -> Result<()> {
+    pub fn pullback(ctx:Context<PullBack>,application_idx:u64,_wallet_bump:u8) -> Result<()> {
         let current_stage = Stage::from(ctx.accounts.application_state.stage);
         if current_stage != Stage::FundsDeposited{
             msg!("Funds not available");
@@ -102,7 +102,7 @@ fn transfer_escrow_out<'info>(
 
     let transfer_instruction = Transfer{
         from: escrow_wallet.to_account_info(),
-        to: destination_wallet,
+        to: destination_wallet.to_account_info(),
         authority:state.to_account_info()
     };
     let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), transfer_instruction, outer.as_slice());
@@ -114,7 +114,7 @@ fn transfer_escrow_out<'info>(
     if should_close {
         let ca = CloseAccount{
             account:escrow_wallet.to_account_info(),
-            destination:user_sending.to_account_info(),
+            destination:user_sending,
             authority:state.to_account_info()
         };
         let cpi_ctx = CpiContext::new_with_signer(token_program.to_account_info(), ca, outer.as_slice());
