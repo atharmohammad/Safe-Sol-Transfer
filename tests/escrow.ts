@@ -5,7 +5,7 @@ import { Escrow } from "../target/types/escrow";
 import { token } from "@project-serum/anchor/dist/cjs/utils";
 import { Account, AccountLayout, RawAccount } from "@solana/spl-token";
 import {encode} from "@project-serum/anchor/dist/cjs/utils/bytes/utf8";
-import { expect } from "chai";
+import { assert, expect } from "chai";
 
 interface PDAparams{
   idx:anchor.BN,
@@ -90,13 +90,14 @@ describe("escrow", () => {
     )
     await provider.sendAndConfirm(tx);
     let account : anchor.web3.PublicKey = undefined;
-    if(mint){
-      const newTx = new anchor.web3.Transaction();
-      account = await spl.getAssociatedTokenAddress(mint,payer.publicKey,undefined,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID);
-      newTx.add(spl.createAssociatedTokenAccountInstruction(payer.publicKey,account,payer.publicKey,mint,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID))
+    const newTx = new anchor.web3.Transaction();
+    account = await spl.getAssociatedTokenAddress(mint,payer.publicKey,undefined,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID);
+    newTx.add(spl.createAssociatedTokenAccountInstruction(payer.publicKey,account,payer.publicKey,mint,spl.TOKEN_PROGRAM_ID,spl.ASSOCIATED_TOKEN_PROGRAM_ID))
+    if(payer == alice){
       newTx.add(spl.createMintToInstruction(mint,account,provider.wallet.publicKey,2,[],spl.TOKEN_PROGRAM_ID));
-      await provider.sendAndConfirm(newTx,[payer]);
     }
+    await provider.sendAndConfirm(newTx,[payer]);
+
     return account;
   }
   beforeEach(async()=>{
@@ -104,8 +105,9 @@ describe("escrow", () => {
     bob = new anchor.web3.Keypair();
     mintAddress = await createMint(provider.connection);
     aliceWallet = await createAssociatedTokenAccount(provider.connection,alice,mintAddress);
-    bobWallet = await createAssociatedTokenAccount(provider.connection,bob);
+    bobWallet = await createAssociatedTokenAccount(provider.connection,bob,mintAddress);
     pda = await getPdaParams(provider.connection,alice.publicKey,bob.publicKey,mintAddress);
+    amount = new anchor.BN(1);
   })
   const readaccount = async(key:anchor.web3.PublicKey) : Promise<RawAccount> =>{
     const acc = await provider.connection.getAccountInfo(key);
@@ -114,8 +116,6 @@ describe("escrow", () => {
   it("Initialize Payment", async () => {
     // Add your test here.
       const prevAliceState = await readaccount(aliceWallet)
-      amount = new anchor.BN(1);
-      const k = new anchor.web3.Keypair();
       try{
         const tx = await program.methods.initialize(pda.idx,amount).accounts({
           applicationState:pda.stateKey,
@@ -139,4 +139,49 @@ describe("escrow", () => {
         console.log(e);
       }
   });
+  it("Compelete Payment",async() => {
+      console.log(bobWallet)
+      const prevBobState = await readaccount(bobWallet);
+      amount = new anchor.BN(1);
+      try{
+        const tx1 = await program.methods.initialize(pda.idx,amount).accounts({
+          applicationState:pda.stateKey,
+          escrowWalletState:pda.escrowWalletKey,
+          userSending:alice.publicKey,
+          userReceiver:bob.publicKey,
+          mintOfTokenSent:mintAddress,
+          walletToWithdrawFrom:aliceWallet,
+          tokenProgram:spl.TOKEN_PROGRAM_ID,
+          systemProgram:anchor.web3.SystemProgram.programId,
+          rent:anchor.web3.SYSVAR_RENT_PUBKEY
+        }).signers([alice]).rpc();
+      }catch(e){
+        console.log(e);
+      }
+      try{
+        const tx2 = await program.methods.compelete(pda.idx,pda.walletBump).accounts({
+          applicationState:pda.stateKey,
+          escrowWalletState:pda.escrowWalletKey,
+          userSending:alice.publicKey,
+          userReceiver:bob.publicKey,
+          mintOfTokenSent:mintAddress,
+          walletDepositTo:bobWallet,
+          tokenProgram:spl.TOKEN_PROGRAM_ID,
+          systemProgram:anchor.web3.SystemProgram.programId,
+          associatedTokenProgram:spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+          rent:anchor.web3.SYSVAR_RENT_PUBKEY
+        }).signers([bob]).rpc();
+        const bobState = await readaccount(bobWallet);
+        try{
+          const escrow = await readaccount(pda.escrowWalletKey);
+          return assert("Account should be closed");
+        }catch(e){
+          expect(e,"Cannot read properties of null (reading 'data')")
+        }
+        expect(bobState.amount.toString()).to.eql("1");
+        expect(prevBobState.amount.toString()).to.eql("0");
+      }catch(e){
+        console.log(e);
+      }
+  })
 });
