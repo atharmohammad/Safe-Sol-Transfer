@@ -112,7 +112,7 @@ describe("escrow", () => {
   }
   it("Initialize Payment", async () => {
     // Add your test here.
-      amount = new anchor.BN(20000000);
+      amount = new anchor.BN(1);
       try{
         const tx = await program.methods.initialize(pda.idx,amount).accounts({
           applicationState:pda.stateKey,

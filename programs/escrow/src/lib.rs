@@ -12,16 +12,24 @@ pub mod escrow {
     pub fn initialize(ctx: Context<InitializePayment>,application_idx:u64,amount:u64) -> Result<()> {
         let curr_state = &mut ctx.accounts.application_state;
         curr_state.idx = application_idx;
-        curr_state.state_bump = *ctx.bumps.get("state").expect("We should have gotten the state bump");
         curr_state.user_sending = ctx.accounts.user_sending.key().clone();
         curr_state.user_receiver = ctx.accounts.user_receiver.key().clone();
         curr_state.mint_of_token_sent = ctx.accounts.mint_of_token_sent.key().clone();
         curr_state.escrow_wallet = ctx.accounts.escrow_wallet_state.key().clone();
         curr_state.amount_token = amount;
 
-        let bump_vector = curr_state.state_bump.to_le_bytes();
         let mint_of_token_sent_pk = ctx.accounts.mint_of_token_sent.key().clone();
         let application_idx = application_idx.to_le_bytes();
+        let inner_bump_vec = vec![
+            b"state".as_ref(),
+            ctx.accounts.user_sending.key.as_ref(),
+            ctx.accounts.user_receiver.key.as_ref(),
+            mint_of_token_sent_pk.as_ref(),
+            application_idx.as_ref(),
+        ];
+        let (_address,state_bump) = Pubkey::find_program_address(inner_bump_vec.as_slice(), ctx.program_id);
+        curr_state.state_bump = state_bump;
+        let bump_vector = curr_state.state_bump.to_le_bytes();
         let inner = vec![
             b"state".as_ref(),
             ctx.accounts.user_sending.key.as_ref(),
